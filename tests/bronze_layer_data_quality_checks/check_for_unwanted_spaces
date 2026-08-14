@@ -3,8 +3,8 @@
 Quality Checks: check_for_unwanted_spaces
 ===============================================================================
 Purpose:
-    Checks each Bronze table's text columns for leading/trailing whitespace using TRIM(). Findings inform which columns need trimming in the Silver 
-    layer transformation.
+    Checks each Bronze table's text columns for leading/trailing whitespace using TRIM(). 
+	Findings inform which columns need trimming in the Silver layer transformation.
 ===============================================================================
 */
 

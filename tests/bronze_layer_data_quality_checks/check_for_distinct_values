@@ -1,0 +1,496 @@
+/*
+===============================================================================
+Quality Checks: check_for_distinct_values
+===============================================================================
+Purpose:
+    Profiles cardinality across all 9 Bronze tables — total row counts and 
+    distinct value counts per column. Serves as reference documentation 
+    rather than a pass/fail check, useful for understanding data shape 
+    before Silver-layer modeling.
+===============================================================================
+*/
+
+
+-- Total records for olist_customers
+SELECT * FROM bronze.olist_customers;
+-- 99441 total records
+
+
+-- Check for distinct values and total no of occurrences in customer_id for olist_customers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(customer_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_customers
+GROUP BY customer_id;
+-- Result: 99441 distinct values (primary key)
+
+
+-- Check for distinct values and total no of occurrences in customer_unique_id for olist_customers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(customer_unique_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_customers
+GROUP BY customer_unique_id;
+-- Result: 96096 distinct values
+
+
+-- Check for distinct values and total no of occurrence in customer_zip_code_prefix for olist_customers
+-- Expectation: dsitinct values and their total occurrence in the table
+SELECT DISTINCT(customer_zip_code_prefix), COUNT(*) AS total_occurrence
+FROM bronze.olist_customers
+GROUP BY customer_zip_code_prefix;
+-- Result: 14994 distinct values
+
+
+-- Check for distinct values and total no of occurrences in customer_city for olist_customers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(customer_city), COUNT(*) AS total_occurrence
+FROM bronze.olist_customers
+GROUP BY customer_city;
+-- Result: 4119 distinct values
+
+
+-- Check for distinct values and total no of occurrences in customer_state for olist_customers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(customer_state), COUNT(*) AS total_occurrence
+FROM bronze.olist_customers
+GROUP BY customer_state;
+-- Result: 27 distinct values 
+
+
+-- Total records for olist_geolocation
+SELECT * FROM bronze.olist_geolocation;
+-- 1000163 total records
+
+
+-- Check for distinct values and total no of occurrence in geolocation_zip_code_prefix for olist_geolocation
+-- Expectation: dsitinct values and their total occurrence in the table
+SELECT DISTINCT(geolocation_zip_code_prefix), COUNT(*) AS total_occurrence
+FROM bronze.olist_geolocation
+GROUP BY geolocation_zip_code_prefix;
+-- Result: 19015 distinct values
+
+
+-- Check for distinct values and total no of occurrences in geolocation_lat for olist_geolocation
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(geolocation_lat), COUNT(*) AS total_occurrence
+FROM bronze.olist_geolocation
+GROUP BY geolocation_lat;
+-- Result: 716685 distinct values
+
+
+-- Check for distinct values and total no of occurrences in geolocation_lng for olist_geolocation
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(geolocation_lng), COUNT(*) AS total_occurrence
+FROM bronze.olist_geolocation
+GROUP BY geolocation_lng;
+-- Result: 717097 distinct values
+
+
+-- Check for distinct values and total no of occurrences in geolocation_city for olist_geolocation
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(geolocation_city), COUNT(*) AS total_occurrence
+FROM bronze.olist_geolocation
+GROUP BY geolocation_city;
+-- Result: 8011 distinct values
+
+
+-- Check for distinct values and total no of occurrences in geolocation_state for olist_geolocation
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(geolocation_state), COUNT(*) AS total_occurrence
+FROM bronze.olist_geolocation
+GROUP BY geolocation_state;
+-- Result: 27 distinct values 
+
+
+-- Total records for olist_order_items
+SELECT * FROM bronze.olist_order_items;
+-- 112650 total records
+
+
+-- Check for distinct values and total no of occurrences in order_id for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY order_id;
+-- Result: 98666 distinct values (primary key)
+
+
+-- Check for distinct values and total no of occurrences in order_item_id for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_item_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY order_item_id;
+-- Result: 21 distinct values
+
+
+-- Check for distinct values and total no of occurrences for the combinations of order_id and order_item_id for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(CONCAT(order_id, '_', order_item_id)), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY CONCAT(order_id, '_', order_item_id);
+-- Result: 112650 distinct values (composite primary key)
+
+
+-- Check for distinct values and total no of occurrences in product_id for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY product_id;
+-- Result: 32951 distinct values
+
+
+-- Check for distinct values and total no of occurrences in seller_id for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(seller_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY seller_id;
+-- Result: 3095 distinct values
+
+
+-- Check for distinct values and total no of occurrences in shipping_limit_date for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(shipping_limit_date), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY shipping_limit_date;
+-- Result: 54615 distinct values 
+
+
+-- Check for distinct values and total no of occurrences in price for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(price), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY price;
+-- Result: 5968 distinct values 
+
+
+-- Check for distinct values and total no of occurrences in freight_value for olist_order_items
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(freight_value), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_items
+GROUP BY freight_value;
+-- Result: 6999 distinct values 
+
+
+-- Total records for olist_order_payments
+SELECT * FROM bronze.olist_order_payments;
+-- 103886 total records
+
+
+-- Check for distinct values and total no of occurrences in order_id for olist_order_payments
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_payments
+GROUP BY order_id;
+-- Result: 99440 distinct values
+
+
+-- Check for distinct values and total no of occurrences in payment_sequential for olist_order_payments
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(payment_sequential), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_payments
+GROUP BY payment_sequential;
+-- Result: 29 distinct values
+
+
+-- Check for distinct values and total no of occurrences for the combinations of order_id and order_item_id for olist_order_payments
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(CONCAT(order_id, '_', payment_sequential)), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_payments
+GROUP BY CONCAT(order_id, '_', payment_sequential);
+-- Result: 103886 distinct values (composite primary key)
+
+
+-- Check for distinct values and total no of occurrences in payment_type for olist_order_payments
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(payment_type), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_payments
+GROUP BY payment_type;
+-- Result: 5 distinct values
+
+
+-- Check for distinct values and total no of occurrences in payment_installments for olist_order_payments
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(payment_installments), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_payments
+GROUP BY payment_installments;
+-- Result: 24 distinct values
+
+
+-- Check for distinct values and total no of occurrences in payment_value for olist_order_payments
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(payment_value), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_payments
+GROUP BY payment_value;
+-- Result: 29077 distinct values
+
+
+-- Total records for olist_order_reviews
+SELECT * FROM bronze.olist_order_reviews;
+-- 99224 total records
+
+
+-- Check for distinct values and total no of occurrences in review_id for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(review_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY review_id;
+-- Result: 98410 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_id for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY order_id;
+-- Result: 98673 distinct values
+
+
+-- Check for distinct values and total no of occurrences for the combinations of review_id and order_id for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(CONCAT(review_id, '_', order_id)), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY CONCAT(review_id, '_', order_id);
+-- Result: 99224 distinct values (composite primary key)
+
+
+-- Check for distinct values and total no of occurrences in review_score for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(review_score), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY review_score;
+-- Result: 5 distinct values
+
+
+-- Check for distinct values and total no of occurrences in review_comment_title for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(review_comment_title), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY review_comment_title;
+-- Result: 4517 distinct values
+
+
+-- Check for distinct values and total no of occurrences in review_comment_message for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(review_comment_message), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY review_comment_message;
+-- Result: 36156 distinct values
+
+
+-- Check for distinct values and total no of occurrences in review_creation_date for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(review_creation_date), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY review_creation_date;
+-- Result: 636 distinct values
+
+
+-- Check for distinct values and total no of occurrences in review_answer_timestamp for olist_order_reviews
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(review_answer_timestamp), COUNT(*) AS total_occurrence
+FROM bronze.olist_order_reviews
+GROUP BY review_answer_timestamp;
+-- Result: 88867 distinct values
+
+
+-- Total records for olist_orders
+SELECT * FROM bronze.olist_orders;
+-- 99441 total records
+
+
+-- Check for distinct values and total no of occurrences in order_id for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_id;
+-- Result: 99441 distinct values (primary key)
+
+
+-- Check for distinct values and total no of occurrences in customer_id for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(customer_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY customer_id;
+-- Result: 99441 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_status for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_status), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_status;
+-- Result: 8 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_purchase_timestamp for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_purchase_timestamp), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_purchase_timestamp;
+-- Result: 88789 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_approved_at for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_approved_at), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_approved_at;
+-- Result: 50463 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_delivered_carrier_date for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_delivered_carrier_date), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_delivered_carrier_date;
+-- Result: 61545 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_delivered_customer_date for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_delivered_customer_date), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_delivered_customer_date;
+-- Result: 75650 distinct values
+
+
+-- Check for distinct values and total no of occurrences in order_estimated_delivery_date for olist_orders
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(order_estimated_delivery_date), COUNT(*) AS total_occurrence
+FROM bronze.olist_orders
+GROUP BY order_estimated_delivery_date;
+-- Result: 459 distinct values
+
+
+-- Total records in olist_product_category_name_translation
+SELECT * FROM bronze.olist_product_category_name_translation;
+-- 71 total records
+
+
+-- Check for distinct values and total occurrences in product_category_name for olist_product_category_name_translation
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_category_name), COUNT(*) AS total_occurrence
+FROM bronze.olist_product_category_name_translation
+GROUP BY product_category_name;
+-- Result: 71 distinct values (primary key)
+
+
+-- Check for distinct values and total occurrences in product_category_name_english for olist_product_category_name_translation
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_category_name_english), COUNT(*) AS total_occurrence
+FROM bronze.olist_product_category_name_translation
+GROUP BY product_category_name_english;
+-- Result: 71 distinct values
+
+
+-- Total records for olist_products
+SELECT * FROM bronze.olist_products;
+-- 32951 total records
+
+
+-- Check for distinct values and total no of occurrences in product_id for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_id;
+-- Result: 32951 distinct values (primary key)
+
+
+-- Check for distinct values and total no of occurrences in product_category_name for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_category_name), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_category_name;
+-- Result: 74 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_name_lenght for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_name_lenght), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_name_lenght;
+-- Result: 67 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_description_lenght for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_description_lenght), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_description_lenght;
+-- Result: 2961 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_photos_qty for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_photos_qty), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_photos_qty;
+-- Result: 20 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_weight_g for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_weight_g), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_weight_g;
+-- Result: 2205 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_length_cm for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_length_cm), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_length_cm;
+-- Result: 100 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_height_cm for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_height_cm), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_height_cm;
+-- Result: 103 distinct values
+
+
+-- Check for distinct values and total no of occurrences in product_width_cm for olist_products
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(product_width_cm), COUNT(*) AS total_occurrence
+FROM bronze.olist_products
+GROUP BY product_width_cm;
+-- Result: 96 distinct values
+
+
+-- Total records for olist_sellers
+SELECT * FROM bronze.olist_sellers;
+-- 3095 total records
+
+
+-- Check for distinct values and total no of occurrences in seller_id for olist_sellers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(seller_id), COUNT(*) AS total_occurrence
+FROM bronze.olist_sellers
+GROUP BY seller_id;
+-- Result: 3095 distinct values (primary key)
+
+
+-- Check for distinct values and total no of occurrences in seller_zip_code_prefix for olist_sellers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(seller_zip_code_prefix), COUNT(*) AS total_occurrence
+FROM bronze.olist_sellers
+GROUP BY seller_zip_code_prefix;
+-- Result: 2246 distinct values
+
+
+-- Check for distinct values and total no of occurrences in seller_city for olist_sellers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(seller_city), COUNT(*) AS total_occurrence
+FROM bronze.olist_sellers
+GROUP BY seller_city;
+-- Result: 611 distinct values
+
+
+-- Check for distinct values and total no of occurrences in seller_state for olist_sellers
+-- Expectation: distinct values and their total occurrence in the table
+SELECT DISTINCT(seller_state), COUNT(*) AS total_occurrence
+FROM bronze.olist_sellers
+GROUP BY seller_state;
+-- Result: 23 distinct values

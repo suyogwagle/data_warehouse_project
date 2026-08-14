@@ -3,8 +3,8 @@
 Quality Checks: check_for_referential_integrity
 ===============================================================================
 Purpose:
-    Verifies that foreign key relationships between Bronze tables actually hold, since raw CSV loads have no enforced constraints. Orphaned records here 
-    would silently break joins when building fact/dimension tables in Gold.
+    Verifies that foreign key relationships between Bronze tables actually hold, since raw CSV loads have no enforced constraints. 
+    Orphaned records here would silently break joins when building fact/dimension tables in Gold.
 ===============================================================================
 */
 

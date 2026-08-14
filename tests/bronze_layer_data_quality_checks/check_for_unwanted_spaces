@@ -1,0 +1,134 @@
+/*
+===============================================================================
+Quality Checks: check_for_unwanted_spaces
+===============================================================================
+Purpose:
+    Checks each Bronze table's text columns for leading/trailing whitespace using TRIM(). Findings inform which columns need trimming in the Silver 
+    layer transformation.
+===============================================================================
+*/
+
+
+-- Check for unwanted spaces in olist_customers table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_customers
+WHERE customer_id != TRIM(customer_id) OR 
+      customer_unique_id != TRIM(customer_unique_id) OR 
+      customer_zip_code_prefix != TRIM(customer_zip_code_prefix) OR 
+      customer_city != TRIM(customer_city) OR
+      customer_state != TRIM(customer_state);
+-- Result: 0 rows returned
+
+
+-- Check for unwanted spaces in olist_geolocation table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_geolocation
+WHERE geolocation_zip_code_prefix != TRIM(geolocation_zip_code_prefix) OR
+      geolocation_lat != TRIM(geolocation_lat) OR
+      geolocation_lng != TRIM(geolocation_lng) OR
+      geolocation_city != TRIM(geolocation_city) OR
+      geolocation_state != TRIM(geolocation_state);
+
+SELECT * FROM bronze.olist_geolocation
+WHERE geolocation_city != TRIM(geolocation_city);
+-- Result: 1 row returned, issue was in geolocation_city
+
+-- Check the length of the data that had unwanted space 
+-- Expectation: length of the actual record and length of the record after trimming
+SELECT LENGTH(geolocation_city), LENGTH(TRIM(geolocation_city)) FROM bronze.olist_geolocation
+WHERE LENGTH(geolocation_city) != LENGTH(TRIM(geolocation_city));
+-- Result: length of the actual record = 9, length of the record after trimming = 8
+
+
+-- Check for unwanted spaces in olist_order_items table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_order_items
+WHERE order_id != TRIM(order_id) OR
+      order_item_id != TRIM(order_item_id) OR
+      product_id != TRIM(product_id) OR
+      seller_id != TRIM(seller_id) OR
+      shipping_limit_date != TRIM(shipping_limit_date) OR
+      price != TRIM(price) OR
+      freight_value != TRIM(freight_value);
+-- Result: 0 rows returned
+
+
+-- Check for unwanted spaces in olist_order_payments table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_order_payments
+WHERE order_id != TRIM(order_id) OR
+      payment_sequential != TRIM(payment_sequential) OR
+      payment_type != TRIM(payment_type) OR
+      payment_installments != TRIM(payment_installments) OR
+      payment_value != TRIM(payment_value);
+-- Result: 0 rows returned
+
+
+-- Check for unwanted spaces in olist_order_reviews table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_order_reviews
+WHERE review_id != TRIM(review_id) OR
+      order_id != TRIM(order_id) OR
+      review_score != TRIM(review_score) OR
+      review_comment_title != TRIM(review_comment_title) OR
+      review_comment_message != TRIM(review_comment_message) OR
+      review_creation_date != TRIM(review_creation_date) OR
+      review_answer_timestamp != TRIM(review_answer_timestamp);
+
+SELECT * FROM bronze.olist_order_reviews
+WHERE review_comment_title != TRIM(review_comment_title);
+
+SELECT * FROM bronze.olist_order_reviews
+WHERE review_comment_message != TRIM(review_comment_message);
+
+SELECT * FROM bronze.olist_order_reviews
+WHERE review_comment_title != TRIM(review_comment_title) AND
+	  review_comment_message != TRIM(review_comment_message);
+-- Result: 9317 rows returned: 1989 due to review_comment_title, 8120 due to review_comment_message, 792 due to both
+
+
+-- Check for unwanted spaces in olist_orders table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_orders 
+WHERE order_id != TRIM(order_id) OR
+      customer_id != TRIM(customer_id) OR
+      order_status != TRIM(order_status) OR
+      order_purchase_timestamp != TRIM(order_purchase_timestamp) OR
+      order_approved_at != TRIM(order_approved_at) OR
+      order_delivered_carrier_date != TRIM(order_delivered_carrier_date) OR
+      order_delivered_customer_date != TRIM(order_delivered_customer_date) OR
+      order_estimated_delivery_date != TRIM(order_estimated_delivery_date);
+-- Result: 0 rows returned
+
+
+-- Check for unwanted spaces in olist_product_category_name_translation table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_product_category_name_translation
+WHERE product_category_name != TRIM(product_category_name) OR
+      product_category_name_english != TRIM(product_category_name_english);
+-- Result: 0 rows returned
+
+
+-- Check for unwanted spaces in olist_products table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_products
+WHERE product_id != TRIM(product_id) OR
+      product_category_name != TRIM(product_category_name) OR
+      product_name_lenght != TRIM(product_name_lenght) OR
+      product_description_lenght != TRIM(product_description_lenght) OR
+      product_photos_qty != TRIM(product_photos_qty) OR
+      product_weight_g != TRIM(product_weight_g) OR
+      product_length_cm != TRIM(product_length_cm) OR
+      product_height_cm != TRIM(product_height_cm) OR
+      product_width_cm != TRIM(product_width_cm);
+-- Result: 0 rows returned
+
+
+-- Check for unwanted spaces in olist_sellers table
+-- Expectation: 0 rows returned
+SELECT * FROM bronze.olist_sellers
+WHERE seller_id != TRIM(seller_id) OR
+      seller_zip_code_prefix != TRIM(seller_zip_code_prefix) OR
+      seller_city != TRIM(seller_city) OR
+      seller_state != TRIM(seller_state);
+-- Result: 0 rows returned

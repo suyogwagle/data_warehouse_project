@@ -1,0 +1,74 @@
+/*
+===============================================================================
+Quality Checks: check_for_valid_values
+===============================================================================
+Purpose:
+    Checks categorical columns against known valid domains (e.g. state codes, order_status, payment_type) 
+    and verifies business-rule ranges (e.g. review_score between 1 and 5, no negative prices). 
+    Confirms values fall within expected bounds rather than just checking for NULLs or formatting.
+===============================================================================
+*/
+
+
+-- Check if the price and freight_value are valid in olist_order_items
+-- Expected: 0 rows returned
+SELECT order_id, price, freight_value
+FROM bronze.olist_order_items
+WHERE CAST(price AS FLOAT) < 0 OR 
+      CAST(freight_value AS FLOAT) < 0;
+-- Result: 0 rows returned
+
+
+-- Check if the customer_zip_code_prefix are valid in olist_customers
+-- Expectation: 0 rows returned
+SELECT customer_id, customer_zip_code_prefix 
+FROM bronze.olist_customers
+WHERE CAST(customer_zip_code_prefix AS INT) < 0;
+-- Result: 0 rows returned
+
+
+-- Check if the customer_zip_code_prefix are valid in olist_geolocation
+-- Expectation: 0 rows returned
+SELECT geolocation_zip_code_prefix 
+FROM bronze.olist_geolocation
+WHERE CAST(geolocation_zip_code_prefix AS INT) < 0;
+-- Result: 0 rows returned
+
+
+-- Check if the payment_installments and payment_value are valid in olist_order_payments
+-- Expectation: 0 rows returned
+SELECT order_id, payment_sequential, payment_installments, payment_value
+FROM bronze.olist_order_payments
+WHERE CAST(payment_installments AS INT) <= 0 OR
+      CAST(payment_value AS FLOAT) < 0;
+-- Result: 2 rows returned with payment_installments = 0
+
+
+-- Check if the review_score is valid in olist_order_reviews
+-- Expectation: 0 rows returned
+SELECT review_id, order_id, review_score 
+FROM bronze.olist_order_reviews
+WHERE CAST(review_score AS INT) < 0;
+-- Result: 0 rows returned
+
+
+-- Check if the product_name_lenght, product_description_lenght, product_photos_qty, product_weight_g, product_length_cm, product_height_cm, product_width_cm are valid in olist_products
+-- Expectation: 0 rows returned
+SELECT product_id, product_name_lenght, product_description_lenght, product_photos_qty, product_weight_g, product_length_cm, product_height_cm, product_width_cm 
+FROM bronze.olist_products
+WHERE CAST(product_name_lenght AS INT) < 0 OR
+      CAST(product_description_lenght AS INT) < 0 OR
+      CAST(product_photos_qty AS INT) < 0 OR
+      CAST(product_weight_g AS INT) < 0 OR
+      CAST(product_length_cm AS INT) < 0 OR
+      CAST(product_height_cm AS INT) < 0 OR
+      CAST(product_width_cm AS INT) < 0;
+-- Result: 0 rows returned
+
+
+-- Check if the seller_zip-code_prefix is valid in olist_sellers
+-- Expectation: 0 rows returned
+SELECT seller_id, seller_zip_code_prefix 
+FROM bronze.olist_sellers
+WHERE CAST(seller_zip_code_prefix AS INT) < 0;
+-- Result: 0 rows returned

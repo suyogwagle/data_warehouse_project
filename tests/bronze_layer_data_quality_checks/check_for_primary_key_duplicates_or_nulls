@@ -1,0 +1,167 @@
+/*
+===============================================================================
+Quality Checks: check_for_primary_key_duplicates_or_nulls
+===============================================================================
+Purpose:
+    Verifies that each Bronze table's expected primary key (or composite key) has no duplicate values and no NULLs. 
+    Findings inform key design for the Silver and Gold layers.
+===============================================================================
+*/
+
+
+-- Check for NULLs or duplicates in potential primary key of olist_customers table
+-- Expectation: 0 rows returned
+SELECT customer_id, COUNT(*) 
+FROM bronze.olist_customers
+GROUP BY customer_id
+HAVING COUNT(*) > 1 OR customer_id IS NULL;
+-- Result: 0 rows returned — no exact duplicates or NULL hence a primary key
+ 
+
+-- Check for NULLs or duplicates in potential primary key order_id of olist_order_items table
+-- Expectation: 0 rows returned
+SELECT order_id, COUNT(*)
+FROM bronze.olist_order_items
+GROUP BY order_id
+HAVING COUNT(*) > 1 OR order_id IS NULL;
+-- Result: 9803 rows returned - exact duplicates are there hence not a priamry key
+
+
+-- Check for NULLs or duplicates in potential primary key order_item_id of olist_order_items table
+-- Expectation: 0 rows returned
+SELECT order_item_id, COUNT(*)
+FROM bronze.olist_order_items
+GROUP BY order_item_id
+HAVING COUNT(*) > 1 OR order_item_id IS NULL;
+-- Result: 20 rows returned - exact duplicates are there hence not a primary key
+
+
+-- Check for NULLs or duplicates in potential composite primary key (order_id, order_item_id) of olist_order_items table
+-- Expectation: 0 rows returned
+SELECT order_id, order_item_id, CONCAT(order_id, '-', order_item_id), COUNT(*)
+FROM bronze.olist_order_items
+GROUP BY order_id, order_item_id
+HAVING COUNT(*) > 1 OR order_id IS NULL OR order_item_id IS NULL;
+-- Result: 0 rows returned — no duplicates found hence (order_id, order_item_id) is the true composite primary key
+ 
+ 
+-- Check: normalized (cast) composite key, catch formatting mismatches like '01' vs '1' that a string-based check would miss.
+-- Expectation: 0 rows returned
+SELECT order_id, CAST(order_item_id AS INT) AS normalized_item_id, COUNT(*), 
+       STRING_AGG(DISTINCT order_item_id, ', ') AS raw_variants
+FROM bronze.olist_order_items
+GROUP BY order_id, CAST(order_item_id AS INT)
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned — no formatting-based duplicates found.
+ 
+
+-- Check for NULLs or duplicates in potential primary key order_id of olist_order_payments table
+-- Expectation: 0 rows returned
+SELECT order_id, COUNT(*)
+FROM bronze.olist_order_payments
+GROUP BY order_id
+HAVING COUNT(*) > 1 OR order_id IS NULL;
+-- Result: 2961 rows returned - exact duplicates are there hence not a primary key
+
+
+-- Check for NULLs or duplicates in potential primary key payment_sequential of olist_order_payments table
+-- Expectation: 0 rows returned
+SELECT payment_sequential, COUNT(*)
+FROM bronze.olist_order_payments
+GROUP BY payment_sequential
+HAVING COUNT(*) > 1 OR payment_sequential IS NULL;
+-- Result: 26 rows returned - exact duplicates are there hence not a primary key
+
+
+-- Check for NULLs or duplicates in potential composite primary key (order_id, payment_sequential) of olist_order_payments table
+-- Expectation: 0 rows returned
+SELECT order_id, payment_sequential, CONCAT(order_id, '-', payment_sequential), COUNT(*) 
+FROM bronze.olist_order_payments
+GROUP BY order_id, payment_sequential
+HAVING COUNT(*) > 1 OR order_id IS NULL OR payment_sequential IS NULL;
+-- Result: 0 rows returned — no duplicates found hence (order_id, payment_sequential) is the true composite primary key
+ 
+ 
+-- Check: normalized (cast) composite key, catches formatting mismatches like '01' vs '1' that a string-based check would miss.
+-- Expectation: 0 rows returned
+SELECT order_id, CAST(payment_sequential AS INT) AS normalized_payment_sequential, COUNT(*),
+       STRING_AGG(DISTINCT payment_sequential, ', ') AS raw_variants
+FROM bronze.olist_order_payments
+GROUP BY order_id, CAST(payment_sequential AS INT)
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned — no formatting-based duplicates found.
+ 
+ 
+-- Check for NULLs or duplicates in potential primary key review_id of olist_order_reviews table
+-- Expectation: 0 rows returned
+SELECT review_id, COUNT(*) 
+FROM bronze.olist_order_reviews
+GROUP BY review_id
+HAVING COUNT(*) > 1 OR review_id IS NULL;
+-- Result: 789 rows returned - exact duplicates hence not a primary key
+ 
+
+-- Check for NULLs or duplicates in potential primary key review_id of olist_order_reviews table
+-- Expectation: 0 rows returned
+SELECT order_id, COUNT(*) 
+FROM bronze.olist_order_reviews
+GROUP BY order_id
+HAVING COUNT(*) > 1 OR order_id IS NULL;
+-- Result: 547 rows returned - exact duplicates hence not a primary key
+
+
+-- Check for NULLs or duplicates in potential composite primary key (review_id, order_id)
+-- Expectation: 0 rows returned 
+SELECT review_id, order_id,CONCAT(review_id, '-', order_id), COUNT(*) 
+FROM bronze.olist_order_reviews
+GROUP BY review_id, order_id
+HAVING COUNT(*) > 1 OR review_id IS NULL OR order_id IS NULL;
+-- Result: 0 rows returned — no duplicates found hence (review_id, order_id) is the true composite primary key
+ 
+ 
+-- Check for NULLs or duplicates in potential primary key order_id of olist_orders table
+-- Expectation: 0 rows returned
+SELECT order_id, COUNT(*) 
+FROM bronze.olist_orders
+GROUP BY order_id
+HAVING COUNT(*) > 1 OR order_id IS NULL;
+-- Result: 0 rows returned - no exact duplicates or NULL hence a primary key
+ 
+ 
+-- Check for NULLs or duplicates in potential primary key product_id of olist_products table
+-- Expectation: 0 rows returned
+SELECT product_id, COUNT(*) 
+FROM bronze.olist_products
+GROUP BY product_id
+HAVING COUNT(*) > 1 OR product_id IS NULL;
+-- Result: 0 rows returned - no exact duplicates or NULL hence a primary key
+ 
+ 
+-- Check for NULLs or duplicates in potential primary key seller_id of olist_sellers table
+-- Expectation: 0 rows returned
+SELECT seller_id, COUNT(*) 
+FROM bronze.olist_sellers
+GROUP BY seller_id
+HAVING COUNT(*) > 1 OR seller_id IS NULL;
+-- Result: 0 rows returned - no exact duplicates or NULL hence a primary key
+ 
+ 
+-- Check for NULLs or duplicates in potential primary key product_category_name of olist_product_category_name_translation table
+-- Expectation: 0 rows returned
+SELECT product_category_name, COUNT(*) 
+FROM bronze.olist_product_category_name_translation
+GROUP BY product_category_name
+HAVING COUNT(*) > 1 OR product_category_name IS NULL;
+-- Result: 0 rows returned - no exact duplicates or NULL hence a primary key
+ 
+ 
+-- Check for exact duplicate rows in olist_geolocation
+-- Expectation: some duplicates are acceptable here, this is exploratory 
+-- (geolocation has no natural single-column key; multiple delivery points can legitimately share the same zip/lat/lng)
+SELECT geolocation_zip_code_prefix, geolocation_lat, geolocation_lng, 
+       geolocation_city, geolocation_state, COUNT(*)
+FROM bronze.olist_geolocation
+GROUP BY geolocation_zip_code_prefix, geolocation_lat, geolocation_lng, 
+         geolocation_city, geolocation_state
+HAVING COUNT(*) > 1;
+-- Result: more than 128,178 records appear as duplicates (2 or more occurrences) hence no primary key

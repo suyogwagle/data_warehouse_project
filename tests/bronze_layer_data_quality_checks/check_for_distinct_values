@@ -3,10 +3,8 @@
 Quality Checks: check_for_distinct_values
 ===============================================================================
 Purpose:
-    Profiles cardinality across all 9 Bronze tables — total row counts and 
-    distinct value counts per column. Serves as reference documentation 
-    rather than a pass/fail check, useful for understanding data shape 
-    before Silver-layer modeling.
+    Profiles cardinality across all 9 Bronze tables — total row counts and distinct value counts per column. 
+    Serves as reference documentation rather than a pass/fail check, useful for understanding data shape before Silver-layer modeling.
 ===============================================================================
 */
 

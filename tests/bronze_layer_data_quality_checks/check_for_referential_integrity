@@ -1,0 +1,102 @@
+/*
+===============================================================================
+Quality Checks: check_for_referential_integrity
+===============================================================================
+Purpose:
+    Verifies that foreign key relationships between Bronze tables actually hold, since raw CSV loads have no enforced constraints. Orphaned records here 
+    would silently break joins when building fact/dimension tables in Gold.
+===============================================================================
+*/
+
+
+-- Check if every customer_id in olist_orders exists in olist_customers
+-- Expectation: 0 rows returned
+SELECT o.order_id, o.customer_id
+FROM bronze.olist_orders o
+LEFT JOIN bronze.olist_customers c ON o.customer_id = c.customer_id
+WHERE c.customer_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every order_id in olist_order_payments exists in olist_orders
+-- Expectation: 0 rows returned
+SELECT p.order_id, o.order_id
+FROM bronze.olist_order_payments p
+LEFT JOIN bronze.olist_orders o ON p.order_id = o.order_id
+WHERE o.order_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every order-id in olist_order_reviews exists in olist_orders
+-- Expectation: 0 rows returned
+SELECT r.review_id, o.order_id
+FROM bronze.olist_order_reviews r
+LEFT JOIN bronze.olist_orders o ON r.order_id = o.order_id
+WHERE o.order_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every product_category_name in olist_products exists in olist_product_category_name_translation
+-- Expectation: 0 rows returned
+SELECT p.product_category_name, t.product_category_name AS matched_product_category_name
+FROM bronze.olist_products p
+LEFT JOIN bronze.olist_product_category_name_translation t ON p.product_category_name = t.product_category_name
+WHERE t.product_category_name IS NULL;
+-- Result: 623 rows returned - maximum null values
+
+
+-- Narrow down the unmatched category names, excluding NULLs 
+-- Expectation: rows with no_matched_product_category_name returned without any null values
+SELECT p.product_category_name
+FROM bronze.olist_products p
+LEFT JOIN bronze.olist_product_category_name_translation t 
+    ON p.product_category_name = t.product_category_name
+WHERE t.product_category_name IS NULL 
+  AND p.product_category_name IS NOT NULL;
+-- Result: shows the distinct unmatched category names - 13 such rows exist with 2 values, excluding NULL product_category_name rows
+
+
+-- Check if every customer_zip_code_prefix in olist_customers exists in olist_geolocation
+-- Expectation: 0 rows returned
+SELECT c.customer_zip_code_prefix, g.geolocation_zip_code_prefix
+FROM bronze.olist_customers c
+LEFT JOIN bronze.olist_geolocation g ON c.customer_zip_code_prefix = g.geolocation_zip_code_prefix
+WHERE g.geolocation_zip_code_prefix IS NULL;
+-- Result: 278 rows returned with 157 distinct values
+
+
+-- Check if every seller_zip_code_prefix in olist_sellers exists in olist_geolocation
+-- Expectation: 0 rows returned
+SELECT s.seller_zip_code_prefix, g.geolocation_zip_code_prefix
+FROM bronze.olist_sellers s
+LEFT JOIN bronze.olist_geolocation g ON s.seller_zip_code_prefix = g.geolocation_zip_code_prefix
+WHERE g.geolocation_zip_code_prefix IS NULL;
+-- Result: 7 rows returned with 7 distinct values
+
+
+-- Check if every order_id in olist_order_items exists in olist_orders
+-- Expectation: 0 rows returned
+SELECT i.order_id, o.order_id
+FROM bronze.olist_order_items i
+LEFT JOIN bronze.olist_orders o ON i.order_id = o.order_id
+WHERE o.order_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every product_id in olist_order_items exists in olist_products
+-- Expectation: 0 rows returned
+SELECT i.product_id, p.product_id
+FROM bronze.olist_order_items i
+LEFT JOIN bronze.olist_products p ON i.product_id = p.product_id
+WHERE p.product_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every seller_id in olist_order_items exists in olist_sellers
+-- Expectation: 0 rows returned
+SELECT i.seller_id, s.seller_id
+FROM bronze.olist_order_items i
+LEFT JOIN bronze.olist_sellers s ON i.seller_id = s.seller_id
+WHERE s.seller_id IS NULL;
+-- Result: 0 rows returned
+

@@ -1,0 +1,329 @@
+/*
+===============================================================================
+Quality Checks: check_for_numeric_and_character_validity
+===============================================================================
+Purpose:
+    Verifies that columns intended to hold numeric or date values actually contain valid, castable data (since all Bronze columns are stored as VARCHAR per the raw fidelity principle). 
+    Also investigates unexpected characters in free-text/place-name columns to separate genuine data quality issues from legitimate values.
+===============================================================================
+*/
+
+
+-- order_items
+-- Check for non-numeric values in price and freight_value in olist_order_items
+-- Expectation: 0 rows returned
+SELECT order_id, price, freight_value
+FROM bronze.olist_order_items
+WHERE price !~ '^\d+(\.\d+)?$' 
+   OR freight_value !~ '^\d+(\.\d+)?$';
+-- Result: 0 rows returned
+
+
+-- Check for invalid shipping_limit_date values in olist_order_items
+-- Expectation: 0 rows returned
+SELECT order_id, shipping_limit_date
+FROM bronze.olist_order_items
+WHERE shipping_limit_date !~ '^\d{2}/\d{2}/\d{4} \d{2}:\d{2}$';
+-- Result: 0 rows returned
+
+
+-- customers
+-- Check for non-numeric values in customer_zip_code_prefix in olist_customers
+-- Expectation: 0 rows returned
+SELECT customer_zip_code_prefix
+FROM bronze.olist_customers
+WHERE customer_zip_code_prefix !~ '\d' ;
+-- Result: 0 rows returned
+
+
+-- Check for unexpected characters in customer_city (digits, symbols, encoding corruption) that shouldn't appear in a city name
+-- Expectation: only expected characters returned — letters, Portuguese accents, spaces, hyphens, apostrophes
+SELECT DISTINCT character
+FROM (
+    SELECT unnest(regexp_split_to_array(customer_city, '')) AS character
+    FROM bronze.olist_customers
+    WHERE customer_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+) sub
+WHERE character ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]';
+-- Result: 2 unexpected characters found
+
+
+-- Find the actual city names containing the unexpected digit characters
+-- Expectation: identify the source rows to determine if this is a genuine data quality issue or a legitimate city name
+SELECT DISTINCT customer_city, COUNT(*)
+FROM bronze.olist_customers
+WHERE customer_city ~ '[0-9]'
+GROUP BY customer_city;
+-- Result: 1 distinct city name found — "quilometro 14 do mutum". 
+-- Confirmed to be a legitimate Brazilian locality name (translates to "Kilometer 14 of Mutum" — a real place named by highway distance marker, common in rural Brazil) 
+-- It is not a data quality issue.
+
+
+-- Check for any customer_state value NOT in the valid Brazilian state code list
+-- Expectation: 0 rows returned
+SELECT DISTINCT customer_state, COUNT(*)
+FROM bronze.olist_customers
+WHERE customer_state NOT IN (
+    'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+    'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+)
+GROUP BY customer_state;
+-- Result: 0 rows returned
+
+
+-- geolocation
+-- Check for any unexpected characters in geolocation_city (non-letter, non-accent, non-space/hyphen/apostrophe)
+-- Expectation: 0 rows returned
+SELECT geolocation_city
+FROM bronze.olist_geolocation
+WHERE geolocation_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]';
+-- Result: 32 rows returned where unexpected characters exist
+
+
+-- Check exactly which unexpected characters are present, and how many distinct cities / total rows each affects
+-- Expectation: only genuinely problematic characters
+SELECT character, COUNT(DISTINCT original_value) AS distinct_cities_affected, 
+       COUNT(*) AS total_occurrences
+FROM (
+    SELECT geolocation_city AS original_value,
+           unnest(regexp_split_to_array(geolocation_city, '')) AS character
+    FROM bronze.olist_geolocation
+    WHERE geolocation_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+) sub
+WHERE character ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+GROUP BY character
+ORDER BY total_occurrences DESC;
+-- Result: 18 distinct unexpected characters found
+
+
+-- Check the actual city names behind each unexpected character
+-- Expectation: records with unexpected characters in them
+SELECT DISTINCT original_value AS geolocation_city, character
+FROM (
+    SELECT geolocation_city AS original_value,
+           unnest(regexp_split_to_array(geolocation_city, '')) AS character
+    FROM bronze.olist_geolocation
+    WHERE geolocation_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+) sub
+WHERE character ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+ORDER BY character, original_value;
+-- Result: 49 distinct records returned and the manual review of the returned values identified 4 categories:
+-- 1. HTML entity / encoding corruption (genuine issue) — e.g. 'lambari d%26apos%3boeste' → should be 'lambari d''oeste', 'sa£o paulo' → should be 'são paulo', etc
+-- 2. Legitimate parenthetical sub-locality names, e.g. 'antunes (igaratinga)', 'jacare (cabreuva)'
+-- 3. Legitimate numbered place names, e.g. 'quilometro 14 do mutum', 'riacho fundo 2', 'colonia z-3'
+-- 4. Structural issue: 2 values contain embedded "city, state, country" instead of just city, e.g. 'rio de janeiro, rio de janeiro, brasil'
+-- 5. Likely junk/placeholder: '* cidade'
+
+
+-- Check specifically the confirmed HTML entity / encoding corruption cases
+-- Expectation: specific list of values needing string cleanup
+SELECT DISTINCT geolocation_city
+FROM bronze.olist_geolocation
+WHERE geolocation_city LIKE '%&%' 
+   OR geolocation_city LIKE '%\%%'
+   OR geolocation_city LIKE '%£%'
+   OR geolocation_city LIKE '%³%'
+   OR geolocation_city LIKE '%´%'
+   OR geolocation_city LIKE '%`%';
+-- Result: 7 distinct values confirmed as genuine encoding corruption
+
+
+-- Check for any geolocation_state value NOT in the valid Brazilian state code list
+-- Expectation: 0 rows returned
+SELECT DISTINCT geolocation_state, COUNT(*)
+FROM bronze.olist_geolocation
+WHERE geolocation_state NOT IN (
+    'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+    'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+)
+GROUP BY geolocation_state;
+-- Result: 0 rows returned
+
+
+-- Check for non-numeric values in geolocation_zip_code_prefix, geolocation_lat and geolocation_lng in olist_geolocation
+-- Expectation: 0 rows returned
+SELECT geolocation_zip_code_prefix,geolocation_zip_code_prefix, geolocation_lat, geolocation_lng
+FROM bronze.olist_geolocation
+WHERE geolocation_zip_code_prefix !~ '\d' OR 
+	  geolocation_lat !~ '\d+(\.\d+)?$' OR 
+	  geolocation_lng !~ '\d+(\.\d+)?$';
+--Result: 0 rows returned
+
+
+-- order_payments
+-- Check for unexpected values in payment_type in olist_order_payments
+-- Expectation: distinct rows returned
+SELECT DISTINCT payment_type
+FROM bronze.olist_order_payments;
+-- Result: 5 distinct rows with no unexpected values
+
+
+-- Check for non-numeric values in payment_sequential, payment_installments and payment_value in olist_order_payments
+-- Expectation: 0 rows returned
+SELECT order_id, payment_sequential, payment_installments, payment_value
+FROM bronze.olist_order_payments
+WHERE payment_installments !~'\d' OR
+	  payment_sequential !~'\d' OR
+	  payment_value !~ '\d+(\.\d+)?$';
+-- Result: 0 rows returned
+
+
+-- order_reviews
+-- Check if the known Ã/Â encoding corruption pattern also appear in review text
+-- Expectation: since this is a free form text some rows might have unexpected characters
+SELECT COUNT(*) AS affected_rows
+FROM bronze.olist_order_reviews
+WHERE review_comment_title LIKE '%Ã%' OR review_comment_title LIKE '%Â%'
+   OR review_comment_message LIKE '%Ã%' OR review_comment_message LIKE '%Â%';
+-- Result: 459 rows returned so it has the same corruption pattern
+
+
+-- Check for non-numeric values in review_score in olist_order_reviews
+-- Expectation: 0 rows returned
+SELECT review_id, order_id, review_score
+FROM bronze.olist_order_reviews
+WHERE review_score !~ '\d';
+-- Result: 0 rows returned
+
+
+-- Check for invalid values in review_creation_date, review_anser_timestamp in olist_order_reviews
+-- Expectations: 0 rows returned
+SELECT review_id, order_id, review_creation_date, review_answer_timestamp
+FROM bronze.olist_order_reviews
+WHERE review_creation_date !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$' OR
+	  review_answer_timestamp !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$';
+-- Result: 0 rows returned
+
+
+-- orders
+-- Check for unexpected values in order_status in olist_orders
+-- Expectation: distinct rows returned
+SELECT DISTINCT order_status
+FROM bronze.olist_orders;
+-- Result: 8 distinct rows with no unexpected value
+
+
+-- Check for invalid/malformed values in order_purchase_timestamp, order_approved_at, order_delivered_carrier_date, order_delivered_customer_date, order_estimated_delivery_date in olist_orders
+-- Expectations: 0 rows returned
+SELECT order_id, order_purchase_timestamp, order_approved_at, order_delivered_carrier_date, order_delivered_customer_date, order_estimated_delivery_date
+FROM bronze.olist_orders
+WHERE order_purchase_timestamp !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$' OR 
+	  order_approved_at !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$' OR
+	  order_delivered_carrier_date !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$' OR
+	  order_delivered_customer_date !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$' OR
+	  order_estimated_delivery_date !~ '\d{2}/\d{2}/\d{4} \d{2}:\d{2}$';
+-- Result:0 rows returned
+
+
+-- product_category_name_translation
+-- Check for unexpected characters in product_category_name
+-- Expectation: 0 rows returned — only lowercase letters and underscores expected
+SELECT product_category_name
+FROM bronze.olist_product_category_name_translation
+WHERE product_category_name ~ '[^a-z_]';
+-- Result: 2 rows returned with a '_2' suffix in their name
+
+
+-- Check for unexpected characters in product_category_name_english
+-- Expectation: 0 rows returned — only lowercase letters and underscores expected
+SELECT product_category_name_english
+FROM bronze.olist_product_category_name_translation
+WHERE product_category_name_english ~ '[^a-z_]';
+-- Result: 2 rows returned with a '_2' suffix in their name
+
+
+-- Confirm that the rows flagged in both checks above are the same underlying rows 
+-- Expectation: 2 rows returned, matching the 2 rows found in each individual check
+SELECT product_category_name, product_category_name_english
+FROM bronze.olist_product_category_name_translation
+WHERE product_category_name ~ '[^a-z_]'
+  AND product_category_name_english ~ '[^a-z_]';
+-- Result: 2 rows returned, matching the 2 rows found in each individual check
+
+
+-- products
+-- Check for unexpected characters in product_category_name in olist_orders
+-- Expectation: 0 rows returned
+SELECT DISTINCT product_category_name
+FROM bronze.olist_products
+WHERE product_category_name ~ '[^a-z_]';
+-- Result: 2 rows returned with the same '_2' suffix that was encountered earlier
+
+
+-- Check for non-numeric values in product_name_lenght, product_description_lenght, product_photos_qty, product_weight_g, product_length_cm, product_height_cm, product_width_cm in olist_products
+-- Expectation: 0 rows returned
+SELECT product_id, product_name_lenght, product_description_lenght, product_photos_qty, product_weight_g, product_length_cm, product_height_cm, product_width_cm
+FROM bronze.olist_products
+WHERE product_name_lenght !~ '\d' OR 
+	  product_description_lenght !~ '\d' OR
+	  product_photos_qty !~ '\d' OR
+	  product_weight_g !~ '\d' OR
+	  product_length_cm !~ '\d' OR
+	  product_height_cm !~ '\d' OR
+	  product_width_cm !~ '\d';
+-- Result: 0 rows returned
+
+
+-- sellers
+-- Check for non-numeric values in seller_zip_code_prefix in olist_sellers
+-- Expectation: 0 rows returned
+SELECT seller_id, seller_zip_code_prefix
+FROM bronze.olist_sellers
+WHERE seller_zip_code_prefix !~ '\d';
+-- Result: 0 rows returned
+
+
+-- Check for any unexpected characters in seller_city (non-letter, non-accent, non-space/hyphen/apostrophe)
+-- Expectation: 0 rows returned
+SELECT seller_city
+FROM bronze.olist_sellers
+WHERE seller_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]';
+-- Result: 24 rows returned where unexpected characters exist
+
+
+-- Check exactly which unexpected characters are present, and how many distinct cities / total rows each affects
+-- Expectation: only genuinely problematic characters
+SELECT character, COUNT(DISTINCT original_value) AS distinct_cities_affected, 
+       COUNT(*) AS total_occurrences
+FROM (
+    SELECT seller_city AS original_value,
+           unnest(regexp_split_to_array(seller_city, '')) AS character
+    FROM bronze.olist_sellers
+    WHERE seller_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+) sub
+WHERE character ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+GROUP BY character
+ORDER BY total_occurrences DESC;
+-- Result: 13 distinct unexpected characters found — dominated by '/' (15 occurrences across 15 cities), followed by smaller counts of ',', digits, '.', '´', '(', ')', '@', '\', 
+-- and a Unicode combining tilde character
+
+
+-- Check the actual city names behind each unexpected character
+-- Expectation: records with unexpected characters in them
+SELECT DISTINCT original_value AS seller_city, character
+FROM (
+    SELECT seller_city AS original_value,
+           unnest(regexp_split_to_array(seller_city, '')) AS character
+    FROM bronze.olist_sellers
+    WHERE seller_city ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+) sub
+WHERE character ~ '[^a-záàâãéêíóôõúüçA-ZÁÀÂÃÉÊÍÓÔÕÚÜÇ\s''-]'
+ORDER BY character, original_value;
+-- Result: 28 distinct records and the manual review of the returned values identified 4 categories:
+-- 1. Structural issue (18 rows): city combined with state/country in one field using '/', ',', or '\' separators — e.g. 'auriflama/sp', 'santo andre/sao paulo', 
+--    'novo hamburgo, rio grande do sul, brasil', 'rio de janeiro \rio de janeiro'.
+-- 2. Genuine junk (2 rows): 'vendas@creditparts.com.br' (an email address) and '4482255' (numeric, likely a phone/zip code)
+-- 3. Legitimate values (2 rows): 'arraial d''ajuda (porto seguro)' (valid ub-locality/parent-city pattern) and 'santa barbara d´oeste' (real city).
+-- 4. Unicode normalization artifact (1 row): 'são paulo' using a combining tilde character instead of the precomposed 'ã' — visually identical to other 'são paulo' rows but would fail exact-match joins/grouping. 
+
+
+-- Check for any seller_state value NOT in the valid Brazilian state code list
+-- Expectation: 0 rows returned
+SELECT DISTINCT seller_state, COUNT(*)
+FROM bronze.olist_sellers
+WHERE seller_state NOT IN (
+    'AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA',
+    'PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'
+)
+GROUP BY seller_state;
+-- Result: 0 rows returned

@@ -1,0 +1,187 @@
+/*
+===============================================================================
+Quality Checks: check_for_null_count_for_nonkey_columns
+===============================================================================
+Purpose:
+    Checks each non-key column across all 9 Bronze tables for NULL counts. 
+    Some NULLs are expected (e.g. delivery dates for undelivered orders, or known gaps in the source Olist dataset) — this check quantifies them 
+    rather than assuming they're a problem, and flags any that look like genuine data quality issues.
+===============================================================================
+*/
+
+
+-- Check NULL counts for each non-key column in olist_orders
+-- Expectation: null_order_status = 0, null_purchase_timestamp = 0; delivery-related columns may show non-zero counts for undelivered orders which is cross-checked against order_status
+SELECT 
+	COUNT(*) AS total_rows,
+	COUNT(*) FILTER (WHERE order_status IS NULL) AS null_order_status,
+	COUNT(*) FILTER (WHERE order_purchase_timestamp IS NULL) AS null_order_purchase_timestamp,
+	COUNT(*) FILTER (WHERE order_approved_at IS NULL) AS null_order_approved_at,
+	COUNT(*) FILTER (WHERE order_delivered_carrier_date IS NULL) AS null_order_delivered_carrier_date,
+	COUNT(*) FILTER (WHERE order_delivered_customer_date IS NULL) AS null_order_delivered_customer_date,
+	COUNT(*) FILTER (WHERE order_estimated_delivery_date IS NULL) AS null_order_estimated_delivery_date
+FROM bronze.olist_orders;
+-- Result: 160 null values for order_approved_at column, 1783 null values for order_delivered_carrier_date column, 2965 null values for order_delivered_customer_date column
+ 
+ 
+-- Check if NULL delivery dates correlate with non-delivered order_status?
+-- Expectation: NULLs in approved_at/delivered_carrier_date/delivered_customer_date should concentrate in non-'delivered' statuses (shipped, invoiced, processing, canceled, unavailable, created). 
+-- 'delivered' orders should have 0 NULLs across all three date columns, since a delivered order should have a full timestamp trail.
+SELECT order_status, 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE order_approved_at IS NULL) AS null_order_approved_at,
+	COUNT(*) FILTER (WHERE order_delivered_carrier_date IS NULL) AS null_order_delivered_carrier_date,
+	COUNT(*) FILTER (WHERE order_delivered_customer_date IS NULL) AS null_order_delivered_customer_date
+FROM bronze.olist_orders
+GROUP BY order_status
+ORDER BY total DESC;
+--- Result: NULL delivery dates concentrate in non-delivered statuses (shipped, invoiced, processing, unavailable). 
+-- 	However, two logical inconsistencies found:
+-- 	1. 8 out of 96,478 'delivered' orders have NULL delivered_customer_date — status says delivered but no delivery timestamp exists.
+-- 	2. 'canceled' orders show a fulfillment funnel that shouldn't exist for a canceled order: 484 out of 625 have order_approved_at populated (order was approved before cancellation), 
+--     75 even have order_delivered_carrier_date populated (handed to carrier before cancellation), and 
+--     6 have a non-NULL order_delivered_customer_date — meaning the order was recorded as delivered to the customer while its status simultaneously says 'canceled', which is contradictory.
+ 
+
+-- Check NULL counts for each non-key column in olist_order_items
+-- Expectation: 0 count returned for each column
+SELECT
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE product_id IS NULL) AS null_product_id,
+	COUNT(*) FILTER (WHERE seller_id IS NULL) AS null_seller_id,
+	COUNT(*) FILTER (WHERE shipping_limit_date IS NULL) AS null_shipping_limit_date,
+	COUNT(*) FILTER (WHERE price IS NULL) AS null_price,
+	COUNT(*) FILTER (WHERE freight_value IS NULL) AS null_freight_value
+FROM bronze.olist_order_items;
+-- Result: 0 count returned for each column
+ 
+ 
+-- Check NULL counts for each non-key column in olist_customers
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE customer_unique_id IS NULL) AS null_customer_unique_id,
+	COUNT(*) FILTER (WHERE customer_zip_code_prefix IS NULL) AS null_customer_zip_code_prefix,
+	COUNT(*) FILTER (WHERE customer_city IS NULL) AS null_customer_city,
+	COUNT(*) FILTER (WHERE customer_state IS NULL) AS null_customer_state
+FROM bronze.olist_customers;
+-- Result: 0 count returned for each column
+ 
+ 
+-- Check NULL counts for each non-key column in olist_geolocation
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE geolocation_zip_code_prefix IS NULL) AS null_geolocation_zip_code_prefix,
+	COUNT(*) FILTER (WHERE geolocation_lat IS NULL) AS null_geolocation_lat,
+	COUNT(*) FILTER (WHERE geolocation_lng IS NULL) AS null_geolocation_lng,
+	COUNT(*) FILTER (WHERE geolocation_city IS NULL) AS null_geolocation_city,
+	COUNT(*) FILTER (WHERE geolocation_state IS NULL) AS null_geolocation_state
+FROM bronze.olist_geolocation;
+-- Result: 0 count returned for each column
+ 
+ 
+-- Check NULL counts for each non-key column in olist_order_payments
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE payment_type IS NULL) AS null_payment_type,
+	COUNT(*) FILTER (WHERE payment_installments IS NULL) AS null_payment_installments,
+	COUNT(*) FILTER (WHERE payment_value IS NULL) AS null_payment_value
+FROM bronze.olist_order_payments;
+-- Result: 0 count returned for each column
+ 
+ 
+-- Check NULL counts for each non-key column in olist_order_reviews
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE review_score IS NULL) AS null_review_score,
+	COUNT(*) FILTER (WHERE review_comment_title IS NULL) AS null_review_comment_title,
+	COUNT(*) FILTER (WHERE review_comment_message IS NULL) AS null_review_comment_message,
+	COUNT(*) FILTER (WHERE review_creation_date IS NULL) AS null_review_creation_date,
+	COUNT(*) FILTER (WHERE review_answer_timestamp IS NULL) AS null_review_answer_timestamp
+FROM bronze.olist_order_reviews;
+-- Result: 87656 null values for review_comment_title, 58247 null values for review_comment_message as most reviews have no written comment, only a score.
+
+
+-- Check whether review_comment_title contains empty strings distinct from NULLs
+-- Expectation: quantify both categories separately
+SELECT 
+    COUNT(*) AS total_rows,
+    COUNT(*) FILTER (WHERE review_comment_title IS NULL) AS null_count,
+    COUNT(*) FILTER (WHERE review_comment_title = '') AS empty_string_count,
+    COUNT(*) FILTER (WHERE review_comment_title IS NOT NULL AND review_comment_title != '') AS populated_count
+FROM bronze.olist_order_reviews;
+-- Result: 0 empty_string_count and 87656 NULL values
+
+
+-- Check whether review_comment_message contains empty strings distinct from NULLs
+-- Expectation: quantify both categories separately
+SELECT 
+    COUNT(*) AS total_rows,
+    COUNT(*) FILTER (WHERE review_comment_message IS NULL) AS null_count,
+    COUNT(*) FILTER (WHERE review_comment_message = '') AS empty_string_count,
+    COUNT(*) FILTER (WHERE review_comment_message IS NOT NULL AND review_comment_message != '') AS populated_count
+FROM bronze.olist_order_reviews;
+-- Result: 0 empty_string_count and 58247 NULL values
+
+ 
+-- Check NULL counts for each non-key column in olist_product_category_name_translation
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE product_category_name IS NULL) AS null_product_category_name,
+	COUNT(*) FILTER (WHERE product_category_name_english IS NULL) AS null_product_category_name_english
+FROM bronze.olist_product_category_name_translation;
+-- Result: 0 count returned for each column
+ 
+ 
+-- Check NULL counts for each non-key column in olist_products
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE product_category_name IS NULL) AS null_product_category_name,
+	COUNT(*) FILTER (WHERE product_name_lenght IS NULL) AS null_product_name_lenght,
+	COUNT(*) FILTER (WHERE product_description_lenght IS NULL) AS null_product_description_lenght,
+	COUNT(*) FILTER (WHERE product_photos_qty IS NULL) AS null_product_photos_qty,
+	COUNT(*) FILTER (WHERE product_weight_g IS NULL) AS null_product_weight_g,
+	COUNT(*) FILTER (WHERE product_length_cm IS NULL) AS null_product_length_cm,
+	COUNT(*) FILTER (WHERE product_height_cm IS NULL) AS null_product_height_cm,
+	COUNT(*) FILTER (WHERE product_width_cm IS NULL) AS null_product_width_cm
+FROM bronze.olist_products;
+-- Result: 610 null values each for product_category_name, product_description_lenght, product_name_lenght, product_photos_qty
+-- 2 null values each for product_weight_g, product_length_cm, product_height_cm, product_width_cm
+ 
+ 
+-- Confirm the 610 NULLs across product_category_name, product_name_lenght, product_description_lenght, and product_photos_qty are the same rows
+-- Expectation: 610 count returned
+SELECT COUNT(*)
+FROM bronze.olist_products
+WHERE product_category_name IS NULL
+  AND product_name_lenght IS NULL
+  AND product_description_lenght IS NULL
+  AND product_photos_qty IS NULL;
+-- Result: 610 — confirmed all 610 NULLs across these four columns belong to the same set of incomplete product records.
+ 
+ 
+-- Confirm the 2 NULLs each for product_weight_g, product_length_cm, product_height_cm, product_width_cm are the same rows
+-- Expectation: 2 count returned
+SELECT COUNT(*)
+FROM bronze.olist_products
+WHERE product_weight_g IS NULL
+  AND product_length_cm IS NULL
+  AND product_height_cm IS NULL
+  AND product_width_cm IS NULL;
+-- Result: 2 — confirmed both NULLs across these four columns belong to the same 2 records.
+ 
+ 
+-- Check NULL counts for each non-key column in olist_sellers
+-- Expectation: 0 count returned for each column
+SELECT 
+	COUNT(*) AS total,
+	COUNT(*) FILTER (WHERE seller_zip_code_prefix IS NULL) AS null_seller_zip_code_prefix,
+	COUNT(*) FILTER (WHERE seller_city IS NULL) AS null_seller_city,
+	COUNT(*) FILTER (WHERE seller_state IS NULL) AS null_seller_state
+FROM bronze.olist_sellers;
+-- Result: 0 count returned for each column

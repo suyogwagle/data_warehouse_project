@@ -1,0 +1,491 @@
+/*
+===============================================================================
+Quality Checks: Silver Layer — Post-Transformation Validation
+===============================================================================
+Purpose:
+    Re-verify data quality after the Bronze-to-Silver transformation: row counts, key uniqueness, encoding/structural fixes, referential integrity, NULL patterns, blank-vs-NULL distinction, and logical date ordering. 
+    Confirm specific fixes applied in load_silver worked as intended, and check for any new issues the transformation itself may have introduced.
+===============================================================================
+*/
+
+-- Check row counts across all Silver tables
+-- Expectation: should show row counts for all Silver tables equal to row counts for all Bronze tables except for geolocation table where the row counts reduced from 1000163 to 19015
+SELECT 'customers' AS tbl, COUNT(*) FROM silver.olist_customers
+UNION ALL SELECT 'geolocation', COUNT(*) FROM silver.olist_geolocation
+UNION ALL SELECT 'order_items', COUNT(*) FROM silver.olist_order_items
+UNION ALL SELECT 'order_payments', COUNT(*) FROM silver.olist_order_payments
+UNION ALL SELECT 'order_reviews', COUNT(*) FROM silver.olist_order_reviews
+UNION ALL SELECT 'orders', COUNT(*) FROM silver.olist_orders
+UNION ALL SELECT 'products', COUNT(*) FROM silver.olist_products
+UNION ALL SELECT 'sellers', COUNT(*) FROM silver.olist_sellers
+UNION ALL SELECT 'category_translation', COUNT(*) FROM silver.olist_product_category_name_translation;
+-- Result: row counts for all Silver tables are equal to row counts for all Bronze tables except for geolocation table where the row counts reduced from 1000163 to 19015
+
+
+-- Confirm the dwh_data_quality_flag distribution in olist_orders
+-- Expectation: 'valid' plus each inconsistency category populated per findings below
+SELECT dwh_data_quality_flag, COUNT(*)
+FROM silver.olist_orders
+GROUP BY dwh_data_quality_flag;
+-- Result: reflects final flag distribution after all date-ordering findings below were incorporated into the flag logic
+
+
+-- Confirm category translation resolved for the 2 previously-untranslated categories
+-- Expectation: both rows show product_category_name_english equal to the original Portuguese name (COALESCE fallback), not NULL
+SELECT product_category_name, product_category_name_english 
+FROM silver.olist_products 
+WHERE product_category_name IN ('pc_gamer', 'portateis_cozinha_e_preparadores_de_alimentos');
+-- Result: both rows show product_category_name_english equal to the original Portuguese name (COALESCE fallback), not NULL
+
+
+-- Confirm the payment_installments fix 
+-- Expectation: should show 1, not 0, for the orders that had 0 payment_installments value in bronze layer table
+SELECT order_id, payment_sequential, payment_installments 
+FROM silver.olist_order_payments 
+WHERE order_id IN ('744bade1fcf9ff3f31d860ace076d422', '1a57108394169c0b47d8f876acc9ba2d');
+-- Result: showed 1, not 0, for the orders that had 0 payment_installments value in bronze layer table
+
+
+-- Confirm seller_city 'Unknown' resolution worked
+-- Expectation: 'Unknown' values in seller_city for rows with junk seller_city in bronze layer table
+SELECT seller_id, seller_city FROM silver.olist_sellers WHERE seller_city = 'Unknown';
+-- Result: 'Unknown' values in seller_city for rows with junk seller_city in bronze layer table
+
+-- Primary Keys Confirmation
+
+-- Confirm primary keys are still unique for olist_customers table
+-- Expectation: 0 rows returned
+SELECT customer_id, COUNT(*) 
+FROM silver.olist_customers 
+GROUP BY customer_id 
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique for olist_geolocation table 
+-- This table didn't have a primary key due to multiple duplicate rows, but after transformation, geolocation_zip_code_prefix can be treated as the primary key since it now has all unique values
+-- Expectation: 0 rows returned
+SELECT geolocation_zip_code_prefix, COUNT(*) 
+FROM silver.olist_geolocation 
+GROUP BY geolocation_zip_code_prefix 
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique for olist_order_items table
+-- Expectation: 0 rows returned
+SELECT order_id, order_item_id, CONCAT(order_id, '-', order_item_id) AS order_item_primary_key, COUNT(*) 
+FROM silver.olist_order_items 
+GROUP BY order_id, order_item_id, CONCAT(order_id, '_', order_item_id) 
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique for olist_order_payments table
+-- Expectation: 0 rows returned
+SELECT order_id, payment_sequential, CONCAT(order_id, '_', payment_sequential) AS payment_id, COUNT(*)
+FROM silver.olist_order_payments
+GROUP BY order_id, payment_sequential, CONCAT(order_id, '_', payment_sequential)
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique for olist_order_reviews table
+-- Expectation: 0 rows returned
+SELECT review_id, order_id, CONCAT(review_id, '_', order_id) AS order_review_id, COUNT(*)
+FROM silver.olist_order_reviews
+GROUP BY review_id, order_id, CONCAT(review_id, '_', order_id)
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique in olist_orders table
+-- Expectation: 0 rows returned
+SELECT order_id, COUNT(*)
+FROM silver.olist_orders
+GROUP BY order_id
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique in olist_product_category_name_translation table
+-- Expectation: 0 rows returned
+SELECT product_category_name, COUNT(*)
+FROM silver.olist_product_category_name_translation
+GROUP BY product_category_name
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique in olist_products table
+-- Expectation: 0 rows returned
+SELECT product_id, COUNT(*)
+FROM silver.olist_products
+GROUP BY product_id
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm primary keys are still unique in olist_sellers table
+-- Expectation: 0 rows returned
+SELECT seller_id, COUNT(*)
+FROM silver.olist_sellers
+GROUP BY seller_id
+HAVING COUNT(*) > 1;
+-- Result: 0 rows returned
+
+
+-- Confirm the 7 confirmed encoding-corrupted geolocation_city values were actually replaced
+-- Expectation: 0 rows returned
+SELECT geolocation_city 
+FROM silver.olist_geolocation
+WHERE geolocation_city LIKE '%Ã%' OR geolocation_city LIKE '%Â%' 
+   OR geolocation_city LIKE '%£%' OR geolocation_city LIKE '%³%'
+   OR geolocation_city LIKE '%´%' OR geolocation_city LIKE '%`%'
+   OR geolocation_city LIKE '%&%';
+-- Result: 0 rows returned
+
+
+-- Confirm the '/' , ',' , '\' structural seller_city rows were properly split
+-- Expectation: 0 rows returned
+SELECT seller_city 
+FROM silver.olist_sellers
+WHERE seller_city LIKE '%/%' OR seller_city LIKE '%,%' OR seller_city LIKE '%\%';
+-- Result: 0 rows returned
+
+
+-- Referential Integrity Checks
+
+-- Check if every customer_id in olist_orders exists in olist_customers
+-- Expectation: 0 rows returned
+SELECT o.order_id, o.customer_id AS matched_customer_id
+FROM silver.olist_orders o
+LEFT JOIN silver.olist_customers c ON o.customer_id = c.customer_id
+WHERE c.customer_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every order_id in olist_order_payments exists in olist_orders
+-- Expectation: 0 rows returned
+SELECT p.order_id, o.order_id AS matched_order_id
+FROM silver.olist_order_payments p
+LEFT JOIN silver.olist_orders o ON p.order_id = o.order_id
+WHERE o.order_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every order_id in olist_order_reviews exists in olist_orders
+-- Expectation: 0 rows returned
+SELECT r.review_id, o.order_id AS matched_order_id
+FROM silver.olist_order_reviews r
+LEFT JOIN silver.olist_orders o ON r.order_id = o.order_id
+WHERE o.order_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every product_category_name in olist_products exists in olist_product_category_name_translation
+-- Expectation: some rows expected since NULL category products won't match
+SELECT p.product_category_name, t.product_category_name AS matched_product_category_name
+FROM silver.olist_products p
+LEFT JOIN silver.olist_product_category_name_translation t ON p.product_category_name = t.product_category_name
+WHERE t.product_category_name IS NULL;
+-- Result: 623 rows returned; 610 with NULL product_category_name + 13 with a non-NULL but untranslated category name (pc_gamer, portateis_cozinha_e_preparadores_de_alimentos)
+
+
+-- Narrow down the unmatched category names, excluding NULLs 
+-- Expectation: only the 2 known untranslated category names returned, no NULLs
+SELECT p.product_category_name
+FROM silver.olist_products p
+LEFT JOIN silver.olist_product_category_name_translation t 
+    ON p.product_category_name = t.product_category_name
+WHERE t.product_category_name IS NULL 
+  AND p.product_category_name IS NOT NULL;
+-- Result: shows the distinct unmatched category names; 13 rows across 2 istinct values, excluding NULL product_category_name rows
+
+
+-- Check if every customer_zip_code_prefix in olist_customers exists in olist_geolocation
+-- Expectation: some rows expected as Bronze confirmed a known coverage gap
+SELECT c.customer_zip_code_prefix, g.geolocation_zip_code_prefix AS matched_zip_code_prefix
+FROM silver.olist_customers c
+LEFT JOIN silver.olist_geolocation g ON c.customer_zip_code_prefix = g.geolocation_zip_code_prefix
+WHERE g.geolocation_zip_code_prefix IS NULL;
+-- Result: 278 rows returned, 157 distinct zip prefixes which is consistent with the known Bronze-layer coverage gap
+
+
+-- Check if every seller_zip_code_prefix in olist_sellers exists in olist_geolocation
+-- Expectation: some rows expected as Bronze confirmed a known coverage gap
+SELECT s.seller_zip_code_prefix, g.geolocation_zip_code_prefix AS matched_zip_code_prefix
+FROM silver.olist_sellers s
+LEFT JOIN silver.olist_geolocation g ON s.seller_zip_code_prefix = g.geolocation_zip_code_prefix
+WHERE g.geolocation_zip_code_prefix IS NULL;
+-- Result: 7 rows returned, 7 distinct zip prefixes which is consistent with the known Bronze-layer coverage gap
+
+
+-- Check if every order_id in olist_order_items exists in olist_orders
+-- Expectation: 0 rows returned
+SELECT i.order_id, o.order_id AS matched_order_id
+FROM silver.olist_order_items i
+LEFT JOIN silver.olist_orders o ON i.order_id = o.order_id
+WHERE o.order_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every product_id in olist_order_items exists in olist_products
+-- Expectation: 0 rows returned
+SELECT i.product_id, p.product_id AS matched_product_id
+FROM silver.olist_order_items i
+LEFT JOIN silver.olist_products p ON i.product_id = p.product_id
+WHERE p.product_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if every seller_id in olist_order_items exists in olist_sellers
+-- Expectation: 0 rows returned
+SELECT i.seller_id, s.seller_id AS matched_seller_id
+FROM silver.olist_order_items i
+LEFT JOIN silver.olist_sellers s ON i.seller_id = s.seller_id
+WHERE s.seller_id IS NULL;
+-- Result: 0 rows returned
+
+
+-- NULL Introduction Checks (non-key columns, post-transformation)
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_customers table
+-- Expectation: 0 rows returned
+SELECT customer_unique_id, customer_zip_code_prefix, customer_city, customer_state, dwh_create_date
+FROM silver.olist_customers 
+WHERE customer_unique_id IS NULL OR
+	  customer_zip_code_prefix IS NULL OR
+	  customer_city IS NULL OR
+	  customer_state IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_geolocation table
+-- Expectation: 0 rows returned
+SELECT geolocation_lat, geolocation_lng, geolocation_city, geolocation_state, dwh_create_date
+FROM silver.olist_geolocation
+WHERE geolocation_lat IS NULL OR
+	  geolocation_lng IS NULL OR
+	  geolocation_city IS NULL OR
+	  geolocation_state IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_order_items table
+-- Expectation: 0 rows returned
+SELECT product_id, seller_id, shipping_limit_date, price, freight_value, dwh_create_date
+FROM silver.olist_order_items
+WHERE product_id IS NULL OR
+	  seller_id IS NULL OR
+	  shipping_limit_date IS NULL OR
+	  price IS NULL OR
+	  freight_value IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_order_payments table
+-- Expectation: 0 rows returned
+SELECT payment_type, payment_installments, payment_value, dwh_create_date
+FROM silver.olist_order_payments
+WHERE payment_type IS NULL OR
+	  payment_installments IS NULL OR
+	  payment_value IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_order_reviews table
+-- Expectation: increased count to Bronze layer as 2 of the 11 whitespace-only comment rows fixed via NULLIF() had no other NULL column, so they newly qualify as NULL rows in Silver 
+SELECT review_score, review_comment_title, review_comment_message, review_creation_date, review_answer_timestamp, dwh_create_date
+FROM silver.olist_order_reviews
+WHERE review_score IS NULL OR
+	  review_comment_title IS NULL OR
+	  review_comment_message IS NULL OR
+	  review_creation_date IS NULL OR
+	  review_answer_timestamp IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 89387 rows returned which is 2 more than Bronze-layer NULL pattern
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_orders table
+-- Expectation: similar count to Bronze layer
+SELECT customer_id, order_status, order_purchase_timestamp, order_approved_at, order_delivered_carrier_date, order_delivered_customer_date, order_estimated_delivery_date, dwh_create_date
+FROM silver.olist_orders
+WHERE customer_id IS NULL OR 
+	  order_status IS NULL OR 
+	  order_purchase_timestamp IS NULL OR  
+	  order_approved_at IS NULL OR
+	  order_delivered_carrier_date IS NULL OR 
+	  order_delivered_customer_date IS NULL OR 
+	  order_estimated_delivery_date IS NULL OR 
+	  dwh_create_date IS NULL;
+-- Result: 2980 rows returned which is consistent with Bronze-layer NULL pattern
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_product_category_name_translation table
+-- Expectation: 0 rows returned
+SELECT product_category_name_english, dwh_create_date
+FROM silver.olist_product_category_name_translation
+WHERE product_category_name_english IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_products table
+-- Expectation: similar count to Bronze layer
+SELECT product_category_name, product_category_name_english, product_name_length, product_description_length, product_photos_qty, product_weight_g, product_length_cm, product_height_cm, product_width_cm, dwh_create_date
+FROM silver.olist_products
+WHERE product_category_name IS NULL OR 
+	  product_category_name_english IS NULL OR 
+	  product_name_length IS NULL OR 
+	  product_description_length IS NULL OR 
+	  product_photos_qty IS NULL OR 
+	  product_weight_g IS NULL OR 
+	  product_length_cm IS NULL OR 
+	  product_height_cm IS NULL OR 
+	  product_width_cm IS NULL OR
+	  dwh_create_date IS NULL;
+-- Result: 611 rows returned which is consistent with Bronze-layer NULL pattern
+
+
+-- Check if any NULL values were introduced in non-primary columns after transformation in olist_sellers table
+-- Expectation: 0 rows returned 
+SELECT seller_zip_code_prefix, seller_city, seller_state, dwh_create_date
+FROM silver.olist_sellers
+WHERE seller_zip_code_prefix IS NULL OR 
+	  seller_city IS NULL OR 
+	  seller_state IS NULL OR   
+	  dwh_create_date IS NULL;
+-- Result: 0 rows returned
+
+
+-- Check if all the "blank" review_comment_title/review_comment_message values are true NULLs, not empty strings, after the TRIM()/NULLIF() transformation applied in load_silver
+-- Expectation: 0 count returned
+SELECT COUNT(*) FROM silver.olist_order_reviews 
+WHERE review_comment_title = '' OR review_comment_message = '';
+-- Result: 0 count returned
+
+
+-- Logical Date Ordering Checks (olist_orders)
+
+-- Check: order_approved_at should not occur before order_purchase_timestamp
+-- Expectation: 0 rows returned
+SELECT order_id, order_purchase_timestamp, order_approved_at
+FROM silver.olist_orders
+WHERE order_approved_at IS NOT NULL
+  AND order_approved_at < order_purchase_timestamp;
+-- Result: 0 rows returned
+
+
+-- Check: order_delivered_carrier_date should not occur before order_approved_at
+-- Expectation: 0 rows returned
+SELECT order_id, order_approved_at, order_delivered_carrier_date
+FROM silver.olist_orders
+WHERE order_approved_at IS NOT NULL
+  AND order_delivered_carrier_date IS NOT NULL
+  AND order_delivered_carrier_date < order_approved_at;
+-- Result: 1358 rows returned
+
+
+-- Check how large the "wrong-order" gap actually is
+-- Expectation: exploratory, informs severity classification
+SELECT order_id, order_approved_at, order_delivered_carrier_date,
+       order_approved_at - order_delivered_carrier_date AS gap
+FROM silver.olist_orders
+WHERE order_approved_at IS NOT NULL
+  AND order_delivered_carrier_date IS NOT NULL
+  AND order_delivered_carrier_date < order_approved_at
+ORDER BY gap DESC;
+-- Result: gap ranges from 1 minute to 171 days
+
+
+-- Break down the gap into minor (likely logging-order artifact) vs severe (likely genuine source data timestamp error), using a 1-day threshold
+-- Expectation: exploratory, informs dwh_data_quality_flag design
+SELECT 
+    CASE 
+        WHEN order_approved_at - order_delivered_carrier_date <= INTERVAL '1 day' THEN 'minor (<= 1 day)'
+        ELSE 'severe (> 1 day)'
+    END AS gap_severity,
+    COUNT(*)
+FROM silver.olist_orders
+WHERE order_approved_at IS NOT NULL
+  AND order_delivered_carrier_date IS NOT NULL
+  AND order_delivered_carrier_date < order_approved_at
+GROUP BY gap_severity;
+-- Result: 901 minor (<= 1 day), 457 severe (> 1 day)
+
+
+-- Check: order_delivered_customer_date should not occur before order_delivered_carrier_date
+-- Expectation: 0 rows returned
+SELECT order_id, order_delivered_carrier_date, order_delivered_customer_date
+FROM silver.olist_orders
+WHERE order_delivered_carrier_date IS NOT NULL
+  AND order_delivered_customer_date IS NOT NULL
+  AND order_delivered_customer_date < order_delivered_carrier_date;
+-- Result: 23 rows returned
+
+
+-- Check how large this "wrong-order" gap actually is
+-- Expectation: exploratory, informs severity classification
+SELECT order_id, order_delivered_carrier_date, order_delivered_customer_date,
+       order_delivered_carrier_date - order_delivered_customer_date AS gap
+FROM silver.olist_orders
+WHERE order_delivered_carrier_date IS NOT NULL
+  AND order_delivered_customer_date IS NOT NULL
+  AND order_delivered_customer_date < order_delivered_carrier_date
+ORDER BY gap DESC;
+-- Result: gap ranges from 23 minutes to 16 days
+
+
+-- Break down the gap into minor vs severe, using the same 1-day threshold
+-- Expectation: exploratory, informs dwh_data_quality_flag design
+SELECT 
+    CASE 
+        WHEN order_delivered_carrier_date - order_delivered_customer_date <= INTERVAL '1 day' THEN 'minor (<= 1 day)'
+        ELSE 'severe (> 1 day)'
+    END AS gap_severity,
+    COUNT(*)
+FROM silver.olist_orders
+WHERE order_delivered_carrier_date IS NOT NULL
+  AND order_delivered_customer_date IS NOT NULL
+  AND order_delivered_customer_date < order_delivered_carrier_date
+GROUP BY gap_severity;
+-- Result: 7 minor (<= 1 day), 16 severe (> 1 day); skews toward severe despite the small total volume
+
+
+-- Check: order_delivered_customer_date should not occur before order_purchase_timestamp 
+-- Expectation: 0 rows returned
+SELECT order_id, order_purchase_timestamp, order_delivered_customer_date
+FROM silver.olist_orders
+WHERE order_delivered_customer_date IS NOT NULL
+  AND order_delivered_customer_date < order_purchase_timestamp;
+-- Result: 0 rows returned
+
+
+-- Check: order_estimated_delivery_date should be after order_purchase_timestamp 
+-- Expectation: 0 rows returned
+SELECT order_id, order_purchase_timestamp, order_estimated_delivery_date
+FROM silver.olist_orders
+WHERE order_estimated_delivery_date < order_purchase_timestamp;
+-- Result: 0 rows returned
+
+
+-- Confirm the final dwh_data_quality_flag distribution after incorporating the carrier-before-approval and customer-before-carrier findings above into the flag logic in load_silver
+-- Expectation: list of all the data_quality_flags with their count
+SELECT dwh_data_quality_flag, COUNT(*) 
+FROM silver.olist_orders 
+GROUP BY dwh_data_quality_flag;
+-- Result: 7 data_quality_flags with their count
+
+
+-- Check if shipping_limit_date is before the order's purchase timestamp
+-- Expectation: 0 rows returned
+SELECT oi.order_id, o.order_purchase_timestamp, oi.shipping_limit_date
+FROM silver.olist_order_items oi
+JOIN silver.olist_orders o ON oi.order_id = o.order_id
+WHERE oi.shipping_limit_date < o.order_purchase_timestamp;
+-- Result: 0 rows returned
